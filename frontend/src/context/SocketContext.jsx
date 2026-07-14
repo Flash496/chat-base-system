@@ -283,6 +283,40 @@ export const SocketProvider = ({ children }) => {
       }
     });
 
+    // Listen for bulk messages delivered status update
+    newSocket.on('messages_status_delivered', ({ chatId, updaterId }) => {
+      const currentActiveChat = activeChatRef.current;
+      const currentUser = userRef.current;
+      if (!currentUser) return;
+
+      // If we are the sender of the 'sent' messages, mark them as 'delivered'
+      if (updaterId !== currentUser._id) {
+        if (currentActiveChat && currentActiveChat._id === chatId) {
+          setMessages(prev => {
+            const next = prev.map(m => m.senderId._id === currentUser._id && m.status === 'sent' ? { ...m, status: 'delivered' } : m);
+            setMessagesCache(cache => ({ ...cache, [chatId]: next }));
+            return next;
+          });
+        } else {
+          setMessagesCache(cache => {
+            const current = cache[chatId] || [];
+            const next = current.map(m => m.senderId._id === currentUser._id && m.status === 'sent' ? { ...m, status: 'delivered' } : m);
+            return { ...cache, [chatId]: next };
+          });
+        }
+
+        setChats(prevChats => prevChats.map(c => {
+          if (c._id === chatId && c.lastMessage && c.lastMessage.senderId._id === currentUser._id && c.lastMessage.status === 'sent') {
+            return {
+              ...c,
+              lastMessage: { ...c.lastMessage, status: 'delivered' }
+            };
+          }
+          return c;
+        }));
+      }
+    });
+
     // Listen for typing events
     newSocket.on('user_typing', ({ chatId, username, userId }) => {
       const currentUser = userRef.current;

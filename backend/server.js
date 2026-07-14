@@ -92,8 +92,24 @@ io.on('connection', async (socket) => {
         lastSeen: new Date()
       });
     });
+
+    // Mark all 'sent' messages sent by others to this connecting user as 'delivered'
+    for (const chat of userChats) {
+      const chatIdStr = chat._id.toString();
+      const result = await Message.updateMany(
+        { chatId: chat._id, senderId: { $ne: socket.user._id }, status: 'sent' },
+        { status: 'delivered' }
+      );
+      
+      if (result.modifiedCount > 0) {
+        io.to(chatIdStr).emit('messages_status_delivered', {
+          chatId: chatIdStr,
+          updaterId: socket.user._id
+        });
+      }
+    }
   } catch (err) {
-    console.error('Error joining chat rooms on connect:', err);
+    console.error('Error joining chat rooms or updating offline receipts on connect:', err);
   }
 
   // EVENT: Join a newly created chat room
