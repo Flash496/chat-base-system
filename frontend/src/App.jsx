@@ -4,10 +4,9 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import Verify from './pages/Verify';
 
 const PrivateRoute = ({ children }) => {
-  const { token, user, loading } = useAuth();
+  const { token, loading } = useAuth();
 
   if (loading) {
     return (
@@ -21,30 +20,12 @@ const PrivateRoute = ({ children }) => {
     );
   }
 
-  if (!token) return <Navigate to="/login" />;
-
-  // Redirect if they have registered an email but haven't verified it yet
-  const isUnverified = user && ((user.email && !user.isEmailVerified) || (user.phone && !user.isPhoneVerified));
-  if (isUnverified) {
-    return <Navigate to="/verify" />;
-  }
-
-  return children;
+  return token ? children : <Navigate to="/login" />;
 };
 
 const PublicRoute = ({ children }) => {
   const { token } = useAuth();
   return token ? <Navigate to="/" /> : children;
-};
-
-const VerifyRoute = ({ children }) => {
-  const { token, user, loading } = useAuth();
-
-  if (loading) return null;
-  if (!token) return <Navigate to="/login" />;
-
-  const isUnverified = user && ((user.email && !user.isEmailVerified) || (user.phone && !user.isPhoneVerified));
-  return isUnverified ? children : <Navigate to="/" />;
 };
 
 function App() {
@@ -74,14 +55,6 @@ function App() {
               <PublicRoute>
                 <Register />
               </PublicRoute>
-            }
-          />
-          <Route
-            path="/verify"
-            element={
-              <VerifyRoute>
-                <Verify />
-              </VerifyRoute>
             }
           />
           <Route path="*" element={<Navigate to="/" />} />
