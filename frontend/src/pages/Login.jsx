@@ -33,27 +33,26 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 relative overflow-hidden">
-      {/* Background ambient glowing circles */}
-      <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-brand-600 rounded-full filter blur-[120px] opacity-10 animate-pulse" />
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-fuchsia-600 rounded-full filter blur-[120px] opacity-10 animate-pulse delay-1000" />
+    <div className="min-h-screen flex items-center justify-center bg-bg-primary p-4 relative overflow-hidden transition-colors">
+      {/* Subtle background ambient glow using our accent color */}
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent-glow rounded-full filter blur-[120px] opacity-40 animate-pulse" />
 
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 glass-effect relative z-10">
+      <div className="w-full max-w-sm bg-bg-secondary border border-border-custom rounded-sm shadow-xl p-8 relative z-10 transition-colors">
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex p-3 rounded-2xl bg-brand-600 bg-opacity-20 border border-brand-500 border-opacity-30 mb-3">
-            <MessageSquare className="w-8 h-8 text-brand-400" />
+          <div className="inline-flex p-3.5 rounded-sm bg-bg-primary border border-border-custom mb-4 shadow-sm">
+            <MessageSquare className="w-6 h-6 text-accent-custom" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-1.5 justify-center">
-            Welcome Back <Sparkles className="w-4 h-4 text-brand-400" />
+          <h1 className="text-lg font-bold text-text-primary tracking-tight uppercase flex items-center gap-1.5 justify-center">
+            Welcome Back <Sparkles className="w-4 h-4 text-accent-custom" />
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Log in to reconnect with your contacts</p>
+          <p className="text-[10px] uppercase font-bold tracking-wider text-text-muted mt-1">Reconnect with your conversations</p>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-6 flex items-start gap-2.5 p-3 rounded-xl bg-rose-500 bg-opacity-10 border border-rose-500 border-opacity-25 text-rose-200 text-xs leading-relaxed">
-            <ShieldAlert className="w-4 h-4 text-rose-400 flex-shrink-0" />
+          <div className="mb-6 flex items-start gap-2.5 p-3 rounded-sm bg-rose-500 bg-opacity-5 border border-rose-500 border-opacity-20 text-rose-700 dark:text-rose-300 text-xs leading-relaxed font-medium">
+            <ShieldAlert className="w-4 h-4 text-rose-500 flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
@@ -61,53 +60,53 @@ const Login = () => {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">
               Email or Phone Number
             </label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="you@example.com or +1234567890"
+                placeholder="you@domain.com or +1234567890"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-200 placeholder-slate-600 outline-none transition-all"
+                className="w-full bg-bg-primary border border-border-custom focus:border-accent-custom rounded-sm py-3 pl-11 pr-4 text-xs font-medium text-text-primary placeholder-text-muted outline-none transition-all"
                 required
               />
-              <User className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-600" />
+              <User className="absolute left-3.5 top-3.5 w-4 h-4 text-text-muted" />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">
               Password
             </label>
             <div className="relative">
               <input
                 type="password"
-                placeholder="••••••••"
+                placeholder="Enter password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl py-3 pl-11 pr-4 text-sm text-slate-200 placeholder-slate-600 outline-none transition-all"
+                className="w-full bg-bg-primary border border-border-custom focus:border-accent-custom rounded-sm py-3 pl-11 pr-4 text-xs font-medium text-text-primary placeholder-text-muted outline-none transition-all"
                 required
               />
-              <KeyRound className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-600" />
+              <KeyRound className="absolute left-3.5 top-3.5 w-4 h-4 text-text-muted" />
             </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-brand-600 hover:bg-brand-500 disabled:bg-brand-800 text-white font-semibold rounded-xl py-3 shadow-lg hover:shadow-brand-500/20 transition-all hover:scale-[1.01] active:scale-95 text-sm mt-2"
+            className="w-full bg-black hover:bg-neutral-900 disabled:bg-bg-tertiary text-white disabled:text-text-muted font-bold text-xs uppercase tracking-widest rounded-sm py-3.5 shadow-sm transition-all hover:scale-102 active:scale-98 cursor-pointer mt-2 border border-transparent disabled:border-border-custom"
           >
-            {loading ? 'Logging in...' : 'Log In'}
+            {loading ? 'Verifying...' : 'Log In'}
           </button>
         </form>
 
         <div className="text-center mt-6">
-          <p className="text-xs text-slate-500">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-brand-400 hover:text-brand-300 font-semibold hover:underline">
-              Create an account
+          <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+            New to ProtoChat?{' '}
+            <Link to="/register" className="text-accent-custom hover:underline font-bold ml-1">
+              Create account
             </Link>
           </p>
         </div>

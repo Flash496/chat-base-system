@@ -35,15 +35,15 @@ const ChatWindow = () => {
 
   if (!activeChat) {
     return (
-      <div className="flex-1 h-full flex flex-col items-center justify-center bg-slate-900 bg-opacity-40 px-4 text-center">
-        <div className="p-4 rounded-full bg-slate-800 bg-opacity-40 border border-slate-800 mb-4 animate-pulse">
-          <MessageCircle className="w-10 h-10 text-brand-400" />
+      <div className="flex-1 h-full flex flex-col items-center justify-center bg-bg-primary px-4 text-center transition-colors">
+        <div className="p-4 rounded-sm bg-bg-secondary border border-border-custom mb-4 shadow-sm animate-pulse">
+          <MessageCircle className="w-8 h-8 text-accent-custom" />
         </div>
-        <h2 className="text-xl font-bold text-white flex items-center gap-1.5 justify-center">
-          Instant Chat Engine <Sparkles className="w-4 h-4 text-brand-400" />
+        <h2 className="text-lg font-bold text-text-primary tracking-tight flex items-center gap-1.5 justify-center uppercase">
+          ProtoChat Engine <Sparkles className="w-4 h-4 text-accent-custom" />
         </h2>
-        <p className="text-sm text-slate-500 max-w-sm mt-1">
-          Select an active conversation or search for a contact using the directory to begin messaging instantly.
+        <p className="text-xs text-text-muted tracking-wide max-w-xs mt-2 leading-relaxed uppercase">
+          Select an active conversation or query the database to begin messaging instantly.
         </p>
       </div>
     );
@@ -98,23 +98,23 @@ const ChatWindow = () => {
                        Object.keys(typingUsers[activeChat._id]).some(uid => uid !== user._id);
 
   return (
-    <div className="flex-1 h-full flex flex-col bg-slate-900 bg-opacity-25 overflow-hidden">
+    <div className="flex-1 h-full flex flex-col bg-bg-primary overflow-hidden transition-colors">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-900 bg-slate-950 bg-opacity-40">
+      <div className="flex items-center justify-between px-6 py-3.5 border-b border-border-custom bg-bg-secondary transition-colors">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => setActiveChat(null)}
-            className="md:hidden p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white mr-1 flex-shrink-0"
+            className="md:hidden p-1.5 rounded-sm hover:bg-bg-tertiary text-text-secondary hover:text-text-primary mr-1 flex-shrink-0 cursor-pointer"
             title="Back to chats"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <UserAvatar username={peer?.username} isOnline={peer?.isOnline} />
           <div className="min-w-0">
-            <h3 className="font-semibold text-sm text-white truncate">{peer?.username}</h3>
-            <span className="text-[11px] text-slate-500 block truncate">
+            <h3 className="font-bold text-xs tracking-wide text-text-primary truncate">{peer?.username}</h3>
+            <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block truncate mt-0.5">
               {peer?.isOnline ? (
-                <span className="text-emerald-400 font-medium">Active now</span>
+                <span className="text-emerald-600">Active now</span>
               ) : (
                 formatLastSeen(peer?.lastSeen)
               )}
@@ -124,11 +124,11 @@ const ChatWindow = () => {
       </div>
 
       {/* Message Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-bg-primary transition-colors">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-600">
-            <AlertCircle className="w-6 h-6 opacity-30 mb-1" />
-            <p className="text-xs">No message history yet. Send a message to start conversation.</p>
+          <div className="flex flex-col items-center justify-center h-full text-text-muted">
+            <AlertCircle className="w-5 h-5 opacity-30 mb-1" />
+            <p className="text-[10px] uppercase tracking-wider font-bold">No message history</p>
           </div>
         ) : (
           messages.map((msg, index) => {
@@ -141,27 +141,29 @@ const ChatWindow = () => {
                 className={`flex w-full ${isSelf ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[70%] rounded-2xl px-4 py-2.5 shadow-md flex flex-col relative transition-all ${
+                  className={`max-w-[70%] rounded-sm px-4 py-2.5 shadow-sm flex flex-col relative border ${
                     isSelf
-                      ? 'bg-brand-600 text-white rounded-tr-none'
-                      : 'bg-slate-800 text-slate-200 rounded-tl-none'
+                      ? 'bg-bubble-self text-bubble-self-text border-accent-custom border-opacity-10 rounded-tr-none'
+                      : 'bg-bg-secondary text-text-primary border-border-custom rounded-tl-none'
                   }`}
                 >
-                  <p className="text-sm break-words leading-relaxed pr-6">{msg.text}</p>
+                  <p className="text-sm break-words leading-relaxed pr-6 font-medium">{msg.text}</p>
                   
                   {/* Footer metadata inside bubble */}
-                  <div className="flex items-center gap-1 self-end mt-1 text-[9px] text-slate-300 opacity-75">
+                  <div className={`flex items-center gap-1 self-end mt-1 text-[9px] font-bold uppercase tracking-wider ${
+                    isSelf ? 'text-bubble-self-text opacity-70' : 'text-text-muted'
+                  }`}>
                     <span>{time}</span>
                     {isSelf && (
                       <span className="inline-block">
                         {msg.status === 'sent' && (
-                          <Check className="w-3 h-3 text-slate-400" />
+                          <Check className="w-3 h-3 text-current opacity-65" />
                         )}
                         {msg.status === 'delivered' && (
-                          <CheckCheck className="w-3.5 h-3.5 text-slate-300" />
+                          <CheckCheck className="w-3.5 h-3.5 text-current opacity-85" />
                         )}
                         {msg.status === 'read' && (
-                          <CheckCheck className="w-3.5 h-3.5 text-sky-300" />
+                          <CheckCheck className="w-3.5 h-3.5 text-current" />
                         )}
                       </span>
                     )}
@@ -175,12 +177,12 @@ const ChatWindow = () => {
         {/* Peer Typing Indicator Bubble */}
         {isPeerTyping && (
           <div className="flex w-full justify-start animate-pulse">
-            <div className="bg-slate-800 text-slate-400 text-xs rounded-2xl rounded-tl-none px-4 py-2.5 flex items-center gap-2">
-              <span className="font-semibold text-slate-300">{peer?.username}</span> is typing
-              <span className="flex gap-1">
-                <span className="h-1.5 w-1.5 bg-slate-400 rounded-full animate-bounce delay-75" />
-                <span className="h-1.5 w-1.5 bg-slate-400 rounded-full animate-bounce delay-150" />
-                <span className="h-1.5 w-1.5 bg-slate-400 rounded-full animate-bounce delay-300" />
+            <div className="bg-bg-secondary text-text-muted text-[11px] rounded-sm rounded-tl-none px-4 py-2.5 flex items-center gap-2 border border-border-custom shadow-sm">
+              <span className="font-bold text-text-primary uppercase tracking-wide">{peer?.username}</span> is typing
+              <span className="flex gap-0.5">
+                <span className="h-1 w-1 bg-text-muted rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <span className="h-1 w-1 bg-text-muted rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <span className="h-1 w-1 bg-text-muted rounded-full animate-bounce" />
               </span>
             </div>
           </div>
@@ -190,21 +192,21 @@ const ChatWindow = () => {
       </div>
 
       {/* Input Bar */}
-      <form onSubmit={handleSend} className="p-4 border-t border-slate-900 bg-slate-950 bg-opacity-40">
+      <form onSubmit={handleSend} className="p-4 border-t border-border-custom bg-bg-secondary transition-colors">
         <div className="flex gap-3 items-center">
           <input
             type="text"
             placeholder="Type a message..."
             value={inputText}
             onChange={handleInputChange}
-            className="flex-1 bg-slate-900 border border-slate-800 focus:border-brand-500 rounded-xl py-3 px-4 text-sm text-slate-200 placeholder-slate-500 outline-none transition-all"
+            className="flex-1 bg-bg-primary border border-border-custom focus:border-accent-custom rounded-sm py-3 px-4 text-xs font-medium text-text-primary placeholder-text-muted outline-none transition-all"
           />
           <button
             type="submit"
             disabled={!inputText.trim()}
-            className="p-3 bg-brand-600 hover:bg-brand-500 disabled:bg-slate-800 text-white rounded-xl shadow-md transition-all hover:scale-105 active:scale-95"
+            className="py-3 px-5 bg-black hover:bg-neutral-900 disabled:bg-bg-tertiary text-white disabled:text-text-muted font-bold text-xs uppercase tracking-widest rounded-sm shadow-sm transition-all hover:scale-102 active:scale-98 cursor-pointer border border-transparent disabled:border-border-custom"
           >
-            <Send className="w-4 h-4" />
+            Send
           </button>
         </div>
       </form>

@@ -7,13 +7,13 @@ const UserAvatar = ({ username, isOnline, size = 'md' }) => {
   };
 
   const getGradient = (name) => {
+    // Premium elegant dark gradients for the initials background
     const colors = [
-      'from-indigo-500 to-purple-600',
-      'from-pink-500 to-rose-600',
-      'from-blue-500 to-indigo-600',
-      'from-teal-400 to-emerald-600',
-      'from-orange-400 to-red-600',
-      'from-fuchsia-500 to-violet-600',
+      'from-slate-800 to-slate-950',
+      'from-indigo-950 to-slate-900',
+      'from-[#1e1b4b] to-[#0f172a]',  // Dark violet-blue
+      'from-[#311042] to-[#0a050f]',  // Deep dark violet
+      'from-[#1c1917] to-[#0c0a09]',  // Dark stone
     ];
     let hash = 0;
     for (let i = 0; i < name.length; i++) {
@@ -25,17 +25,17 @@ const UserAvatar = ({ username, isOnline, size = 'md' }) => {
 
   const sizeClasses = {
     sm: 'w-8 h-8 text-xs',
-    md: 'w-11 h-11 text-sm',
-    lg: 'w-14 h-14 text-lg',
+    md: 'w-10 h-10 text-xs tracking-wider',
+    lg: 'w-12 h-12 text-sm tracking-wider',
   };
 
   return (
     <div className="relative inline-block select-none flex-shrink-0">
-      <div className={`rounded-full flex items-center justify-center font-bold text-white shadow-md bg-gradient-to-br ${getGradient(username)} ${sizeClasses[size]}`}>
+      <div className={`rounded-sm flex items-center justify-center font-bold text-white shadow-sm border border-border-custom bg-gradient-to-br ${getGradient(username)} ${sizeClasses[size]}`}>
         {getInitials(username)}
       </div>
       {isOnline && (
-        <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-slate-900 shadow-glow" />
+        <span className="absolute -bottom-0.5 -right-0.5 block h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-bg-primary shadow-sm" />
       )}
     </div>
   );
