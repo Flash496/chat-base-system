@@ -1,6 +1,6 @@
-# Aura Chat Application
+# ProtoChat Application
 
-A full-stack, real-time secure messaging application built from scratch without external BaaS vendor APIs (like Firebase, Pusher, or Supabase). Aura Chat handles authentication, persistence, routing, and WebSockets through self-hosted custom servers.
+A full-stack, real-time secure messaging application built from scratch without external BaaS vendor APIs (like Firebase, Pusher, or Supabase). ProtoChat handles authentication, persistence, routing, and WebSockets through self-hosted custom servers.
 
 ## Tech Stack
 *   **Frontend:** React (Vite) + Tailwind CSS + Lucide Icons
