@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { LogOut, UserPlus, MessageSquare, Search, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -6,9 +6,34 @@ import UserAvatar from './UserAvatar';
 import ContactSearch from './ContactSearch';
 
 const Sidebar = () => {
-  const { user, logout, theme, toggleTheme } = useAuth();
+  const { user, logout, updateProfilePic, theme, toggleTheme } = useAuth();
   const { chats, chatsLoading, activeChat, setActiveChat } = useSocket();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image size must be under 2MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onloadend = async () => {
+      const base64 = reader.result;
+      const res = await updateProfilePic(base64);
+      if (!res.success) {
+        alert(res.message);
+      }
+    };
+  };
 
   const getOtherParticipant = (chat) => {
     if (!chat || !chat.participants) return null;
@@ -41,7 +66,16 @@ const Sidebar = () => {
       {/* Sidebar Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-custom bg-bg-secondary transition-colors">
         <div className="flex items-center gap-3">
-          <UserAvatar username={user?.username} isOnline={true} size="md" />
+          <div onClick={handleAvatarClick} className="cursor-pointer hover:opacity-80 transition-opacity" title="Upload profile picture">
+            <UserAvatar username={user?.username} profilePic={user?.profilePic} isOnline={true} size="md" />
+          </div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/*"
+            className="hidden"
+          />
           <div className="min-w-0">
             <h3 className="font-bold text-sm text-text-primary tracking-tight truncate max-w-[110px]">{user?.username}</h3>
             <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-wider flex items-center gap-1">
@@ -131,7 +165,7 @@ const Sidebar = () => {
                     : 'bg-bg-secondary border-border-custom hover:border-text-muted hover:bg-bg-tertiary text-text-secondary hover:text-text-primary shadow-sm'
                 }`}
               >
-                <UserAvatar username={peer.username} isOnline={peer.isOnline} />
+                <UserAvatar username={peer.username} profilePic={peer.profilePic} isOnline={peer.isOnline} />
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-baseline mb-1">
                     <h4 className="font-bold text-xs tracking-wide text-text-primary truncate">{peer.username}</h4>

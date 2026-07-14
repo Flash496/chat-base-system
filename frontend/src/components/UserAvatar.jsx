@@ -1,6 +1,6 @@
 import React from 'react';
 
-const UserAvatar = ({ username, isOnline, size = 'md' }) => {
+const UserAvatar = ({ username, profilePic, isOnline, size = 'md' }) => {
   const getInitials = (name) => {
     if (!name) return '?';
     return name.slice(0, 2).toUpperCase();
@@ -31,9 +31,17 @@ const UserAvatar = ({ username, isOnline, size = 'md' }) => {
 
   return (
     <div className="relative inline-block select-none flex-shrink-0">
-      <div className={`rounded-sm flex items-center justify-center font-bold text-white shadow-sm border border-border-custom bg-gradient-to-br ${getGradient(username)} ${sizeClasses[size]}`}>
-        {getInitials(username)}
-      </div>
+      {profilePic ? (
+        <img
+          src={profilePic}
+          alt={username}
+          className={`rounded-sm object-cover border border-border-custom shadow-sm ${sizeClasses[size]}`}
+        />
+      ) : (
+        <div className={`rounded-sm flex items-center justify-center font-bold text-white shadow-sm border border-border-custom bg-gradient-to-br ${getGradient(username)} ${sizeClasses[size]}`}>
+          {getInitials(username)}
+        </div>
+      )}
       {isOnline && (
         <span className="absolute -bottom-0.5 -right-0.5 block h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-bg-primary shadow-sm" />
       )}

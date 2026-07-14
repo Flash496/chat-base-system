@@ -169,7 +169,7 @@ const ChatWindow = () => {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <UserAvatar username={peer?.username} isOnline={isOnline} />
+          <UserAvatar username={peer?.username} profilePic={peer?.profilePic} isOnline={isOnline} />
           <div className="min-w-0">
             <h3 className="font-bold text-xs tracking-wide text-text-primary truncate">{peer?.username}</h3>
             <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block truncate mt-0.5">

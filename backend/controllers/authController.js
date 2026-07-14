@@ -59,6 +59,7 @@ const register = async (req, res) => {
         username: user.username,
         email: user.email,
         phone: user.phone,
+        profilePic: user.profilePic || '',
         token: generateToken(user._id),
       });
     } else {
@@ -105,6 +106,7 @@ const login = async (req, res) => {
       username: user.username,
       email: user.email,
       phone: user.phone,
+      profilePic: user.profilePic || '',
       token: generateToken(user._id),
     });
   } catch (error) {

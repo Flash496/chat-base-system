@@ -9,7 +9,7 @@ const getChats = async (req, res) => {
   try {
     const chats = await Chat.find({
       participants: req.user._id
-    }).populate('participants', '_id username email phone isOnline lastSeen');
+    }).populate('participants', '_id username email phone profilePic isOnline lastSeen');
 
     const chatsWithMetadata = await Promise.all(chats.map(async (chat) => {
       // Find latest message in this conversation
@@ -70,7 +70,7 @@ const createChat = async (req, res) => {
     let chat = await Chat.findOne({
       isGroup: false,
       participants: { $all: [req.user._id, recipientId], $size: 2 }
-    }).populate('participants', '_id username email phone isOnline lastSeen');
+    }).populate('participants', '_id username email phone profilePic isOnline lastSeen');
 
     if (chat) {
       return res.json(chat);
@@ -83,7 +83,7 @@ const createChat = async (req, res) => {
     });
 
     const populatedChat = await Chat.findById(chat._id)
-      .populate('participants', '_id username email phone isOnline lastSeen');
+      .populate('participants', '_id username email phone profilePic isOnline lastSeen');
 
     res.status(201).json(populatedChat);
   } catch (error) {

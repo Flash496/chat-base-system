@@ -112,7 +112,7 @@ const ContactSearch = ({ isOpen, onClose }) => {
               className="flex items-center justify-between p-3 rounded-sm border border-border-custom bg-bg-secondary hover:border-accent-custom transition-all shadow-sm"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <UserAvatar username={user.username} isOnline={user.isOnline} />
+                <UserAvatar username={user.username} profilePic={user.profilePic} isOnline={user.isOnline} />
                 <div className="min-w-0">
                   <h4 className="font-bold text-xs tracking-wide text-text-primary truncate">{user.username}</h4>
                   <div className="flex flex-col gap-0.5 mt-0.5">

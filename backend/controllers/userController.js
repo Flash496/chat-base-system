@@ -23,7 +23,7 @@ const searchUsers = async (req, res) => {
           ]
         }
       ]
-    }).select('_id username email phone isOnline lastSeen');
+    }).select('_id username email phone profilePic isOnline lastSeen');
 
     res.json(users);
   } catch (error) {
@@ -32,6 +32,31 @@ const searchUsers = async (req, res) => {
   }
 };
 
+// @desc    Update user profile picture
+// @route   PUT /api/users/profile-pic
+// @access  Private
+const updateProfilePic = async (req, res) => {
+  const { profilePic } = req.body;
+
+  if (profilePic === undefined) {
+    return res.status(400).json({ message: 'profilePic field is required' });
+  }
+
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { profilePic },
+      { new: true }
+    ).select('_id username email phone profilePic isOnline lastSeen');
+
+    res.json(user);
+  } catch (error) {
+    console.error('Update Profile Pic Error:', error);
+    res.status(500).json({ message: error.message || 'Server error updating profile picture' });
+  }
+};
+
 module.exports = {
   searchUsers,
+  updateProfilePic,
 };

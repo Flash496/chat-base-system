@@ -100,8 +100,23 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const updateProfilePic = async (base64String) => {
+    try {
+      const response = await axios.put(`${API_URL}/users/profile-pic`, { profilePic: base64String });
+      const userData = response.data;
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to update profile picture'
+      };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, theme, toggleTheme, API_URL }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfilePic, theme, toggleTheme, API_URL }}>
       {children}
     </AuthContext.Provider>
   );
