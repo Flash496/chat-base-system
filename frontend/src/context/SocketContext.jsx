@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 import io from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
@@ -48,6 +48,24 @@ export const SocketProvider = ({ children }) => {
   const [typingUsers, setTypingUsers] = useState({}); // chatId -> { userId: username }
   const [onlineUsers, setOnlineUsers] = useState({}); // userId -> { isOnline, lastSeen }
 
+  // Use refs to prevent socket listeners from getting stale values when activeChat/chats change.
+  // This allows the socket connection to remain stable and open without reconnecting on every chat switch.
+  const activeChatRef = useRef(activeChat);
+  const chatsRef = useRef(chats);
+  const userRef = useRef(user);
+
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
+
+  useEffect(() => {
+    chatsRef.current = chats;
+  }, [chats]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   // Load user's conversations
   const fetchChats = async () => {
     if (!token) return;
@@ -62,9 +80,9 @@ export const SocketProvider = ({ children }) => {
     }
   };
 
-  // Initialize Socket.IO connection
+  // Initialize Socket.IO connection (Runs once on boot/login, does not reconnect on chat switch)
   useEffect(() => {
-    if (!token || !user) {
+    if (!token || !userRef.current) {
       if (socket) {
         socket.disconnect();
         setSocket(null);
@@ -78,6 +96,11 @@ export const SocketProvider = ({ children }) => {
       transports: ['websocket'],
       reconnectionAttempts: 5
     });
+
+    // Request desktop notification permission on login/dashboard load
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(err => console.error('Error requesting notification permission:', err));
+    }
 
     newSocket.on('connect', () => {
       console.log('Socket.IO connection established locally.');
@@ -102,26 +125,40 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for incoming messages
     newSocket.on('new_message', (msg) => {
+      const currentUser = userRef.current;
+      if (!currentUser) return;
+
       // If we are the recipient and this is from another user, send delivery receipt
-      if (msg.senderId._id !== user._id) {
+      if (msg.senderId._id !== currentUser._id) {
         newSocket.emit('msg_delivered', { messageId: msg._id, chatId: msg.chatId });
       }
 
-      // Check if it's the active chat
-      const isFromSelf = msg.senderId._id === user._id;
-      const isActive = activeChat && activeChat._id === msg.chatId;
+      // Check if it's the active chat using Ref
+      const isFromSelf = msg.senderId._id === currentUser._id;
+      const currentActiveChat = activeChatRef.current;
+      const isActive = currentActiveChat && currentActiveChat._id === msg.chatId;
 
-      // Play Chime sound if from peer, not active, and chat is not muted
+      // Play Chime sound & trigger push alert if from peer, not active, and chat is not muted
       if (!isFromSelf && (!isActive || document.hidden)) {
-        setChats(prevChats => {
-          const matchedChat = prevChats.find(c => c._id === msg.chatId);
-          const matchedSettings = matchedChat?.settings?.find(s => s.userId.toString() === user._id.toString());
-          const isMuted = matchedSettings ? matchedSettings.isMuted : false;
-          if (!isMuted) {
-            playChime();
+        const matchedChat = chatsRef.current.find(c => c._id === msg.chatId);
+        const matchedSettings = matchedChat?.settings?.find(s => s.userId.toString() === currentUser._id.toString());
+        const isMuted = matchedSettings ? matchedSettings.isMuted : false;
+        if (!isMuted) {
+          playChime();
+
+          // Show push notification if permission granted
+          if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification(msg.senderId.username, {
+                body: msg.text,
+                tag: msg.chatId, // Groups notification cards from same chat together
+                renotify: true
+              });
+            } catch (err) {
+              console.error('Failed to trigger notification:', err);
+            }
           }
-          return prevChats;
-        });
+        }
       }
 
       if (isActive) {
@@ -132,7 +169,7 @@ export const SocketProvider = ({ children }) => {
         });
 
         // If active, mark it as read immediately
-        if (msg.senderId._id !== user._id) {
+        if (msg.senderId._id !== currentUser._id) {
           newSocket.emit('read_chat', { chatId: msg.chatId });
         }
       }
@@ -152,8 +189,8 @@ export const SocketProvider = ({ children }) => {
 
         // Sort by Pinned, then latest message time
         return [...updated].sort((a, b) => {
-          const aSettings = a.settings?.find(s => s.userId.toString() === user._id.toString());
-          const bSettings = b.settings?.find(s => s.userId.toString() === user._id.toString());
+          const aSettings = a.settings?.find(s => s.userId.toString() === currentUser._id.toString());
+          const bSettings = b.settings?.find(s => s.userId.toString() === currentUser._id.toString());
           const aPinned = aSettings ? aSettings.isPinned : false;
           const bPinned = bSettings ? bSettings.isPinned : false;
 
@@ -169,7 +206,11 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for message status updates (e.g. sent -> delivered)
     newSocket.on('message_status_update', ({ messageId, status, chatId }) => {
-      if (activeChat && activeChat._id === chatId) {
+      const currentActiveChat = activeChatRef.current;
+      const currentUser = userRef.current;
+      if (!currentUser) return;
+
+      if (currentActiveChat && currentActiveChat._id === chatId) {
         setMessages(prev => prev.map(m => m._id === messageId ? { ...m, status } : m));
       }
       setChats(prevChats => prevChats.map(c => {
@@ -185,19 +226,23 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for chat read notifications
     newSocket.on('chat_read', ({ chatId, readerId }) => {
-      if (readerId !== user._id) {
-        if (activeChat && activeChat._id === chatId) {
-          setMessages(prev => prev.map(m => m.senderId._id === user._id ? { ...m, status: 'read' } : m));
+      const currentActiveChat = activeChatRef.current;
+      const currentUser = userRef.current;
+      if (!currentUser) return;
+
+      if (readerId !== currentUser._id) {
+        if (currentActiveChat && currentActiveChat._id === chatId) {
+          setMessages(prev => prev.map(m => m.senderId._id === currentUser._id ? { ...m, status: 'read' } : m));
         }
         setChats(prevChats => prevChats.map(c => {
           if (c._id === chatId) {
-            const updatedLast = c.lastMessage && c.lastMessage.senderId._id === user._id
+            const updatedLast = c.lastMessage && c.lastMessage.senderId._id === currentUser._id
               ? { ...c.lastMessage, status: 'read' }
               : c.lastMessage;
             return {
               ...c,
               lastMessage: updatedLast,
-              unreadCount: readerId === user._id ? 0 : c.unreadCount
+              unreadCount: readerId === currentUser._id ? 0 : c.unreadCount
             };
           }
           return c;
@@ -207,6 +252,9 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for typing events
     newSocket.on('user_typing', ({ chatId, username, userId }) => {
+      const currentUser = userRef.current;
+      if (!currentUser) return;
+
       setTypingUsers(prev => ({
         ...prev,
         [chatId]: { ...(prev[chatId] || {}), [userId]: username }
@@ -246,7 +294,8 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for message reactions updates
     newSocket.on('message_reaction_update', ({ messageId, chatId, reactions }) => {
-      if (activeChat && activeChat._id === chatId) {
+      const currentActiveChat = activeChatRef.current;
+      if (currentActiveChat && currentActiveChat._id === chatId) {
         setMessages(prev => prev.map(m => m._id === messageId ? { ...m, reactions } : m));
       }
     });
@@ -256,9 +305,9 @@ export const SocketProvider = ({ children }) => {
     return () => {
       newSocket.disconnect();
     };
-  }, [token, activeChat?._id]);
+  }, [token]);
 
-  // Load message history when active chat changes
+  // Load message history when active chat changes (Stable REST load)
   useEffect(() => {
     const loadMessages = async () => {
       if (!activeChat || !token) return;

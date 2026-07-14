@@ -6,15 +6,17 @@ import UserAvatar from './UserAvatar';
 import ContactSearch from './ContactSearch';
 
 const Sidebar = () => {
-  const { user, logout, theme, toggleTheme } = useAuth();
+  const { user, logout, theme, toggleTheme, updateProfilePic, uploadProgress } = useAuth();
   const { chats, chatsLoading, activeChat, setActiveChat, togglePinChat, toggleMuteChat, removeChat } = useSocket();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeMenuChatId, setActiveMenuChatId] = useState(null);
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     const handleOutsideClick = () => {
       setActiveMenuChatId(null);
+      setShowAvatarMenu(false);
     };
     document.addEventListener('mousedown', handleOutsideClick);
     return () => {
@@ -22,28 +24,70 @@ const Sidebar = () => {
     };
   }, []);
 
-  const handleAvatarClick = () => {
-    fileInputRef.current?.click();
+  const handleAvatarClick = (e) => {
+    e.stopPropagation();
+    if (uploadProgress !== null) return; // Prevent clicking while uploading
+    
+    if (user?.profilePic) {
+      setShowAvatarMenu(!showAvatarMenu);
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
+
+  // Resize and compress profile pictures client-side to keep base64 strings extremely small (~10KB)
+  const compressImage = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const max_size = 150;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > max_size) {
+              height *= max_size / width;
+              width = max_size;
+            }
+          } else {
+            if (height > max_size) {
+              width *= max_size / height;
+              height = max_size;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Get optimized base64 string
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          resolve(dataUrl);
+        };
+      };
+    });
   };
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Image size must be under 2MB.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onloadend = async () => {
-      const base64 = reader.result;
-      const res = await updateProfilePic(base64);
+    try {
+      const compressedBase64 = await compressImage(file);
+      const res = await updateProfilePic(compressedBase64);
       if (!res.success) {
         alert(res.message);
       }
-    };
+    } catch (err) {
+      console.error('Failed to compress and upload image:', err);
+      alert('Failed to process image file.');
+    }
   };
 
   const getOtherParticipant = (chat) => {
@@ -74,8 +118,50 @@ const Sidebar = () => {
       {/* Sidebar Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border-custom bg-bg-secondary transition-colors">
         <div className="flex items-center gap-3">
-          <div onClick={handleAvatarClick} className="cursor-pointer hover:opacity-80 transition-opacity" title="Upload profile picture">
-            <UserAvatar username={user?.username} profilePic={user?.profilePic} isOnline={true} size="md" />
+          {/* Avatar Container with options popup */}
+          <div className="relative">
+            <div onClick={handleAvatarClick} className="relative cursor-pointer hover:opacity-85 transition-opacity" title="Profile options">
+              <UserAvatar username={user?.username} profilePic={user?.profilePic} isOnline={true} size="md" />
+              {uploadProgress !== null && (
+                <div className="absolute inset-0 bg-black bg-opacity-70 flex flex-col items-center justify-center rounded-sm text-[8px] font-bold text-white uppercase tracking-wider">
+                  <span>{uploadProgress}%</span>
+                  <div className="w-8 bg-neutral-800 h-0.5 mt-0.5 rounded-full overflow-hidden">
+                    <div className="bg-accent-custom h-full transition-all duration-150" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Profile Picture options menu */}
+            {showAvatarMenu && (
+              <div
+                onMouseDown={(e) => e.stopPropagation()}
+                className="absolute left-0 top-12 z-30 bg-bg-secondary border border-border-custom shadow-xl p-1.5 rounded-sm w-36 animate-fadeIn"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                    setShowAvatarMenu(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-sm transition-all cursor-pointer"
+                >
+                  Upload New
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm('Delete your profile picture?')) {
+                      await updateProfilePic('');
+                    }
+                    setShowAvatarMenu(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-rose-600 hover:text-rose-750 hover:bg-bg-tertiary rounded-sm transition-all cursor-pointer border-t border-border-custom mt-1 pt-1.5"
+                >
+                  Delete Current
+                </button>
+              </div>
+            )}
           </div>
           <input
             type="file"
@@ -87,7 +173,7 @@ const Sidebar = () => {
           <div className="min-w-0">
             <h3 className="font-bold text-sm text-text-primary tracking-tight truncate max-w-[110px]">{user?.username}</h3>
             <span className="text-[9px] text-emerald-600 font-bold uppercase tracking-wider flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block animate-ping" /> Online
+              Online
             </span>
           </div>
         </div>

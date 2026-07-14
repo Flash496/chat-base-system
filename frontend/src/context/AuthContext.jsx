@@ -10,6 +10,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  const [uploadProgress, setUploadProgress] = useState(null); // null means no active upload
 
   // Synchronize HTML classes with theme state
   useEffect(() => {
@@ -101,8 +102,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateProfilePic = async (base64String) => {
+    setUploadProgress(0);
     try {
-      const response = await axios.put(`${API_URL}/users/profile-pic`, { profilePic: base64String });
+      const response = await axios.put(`${API_URL}/users/profile-pic`, 
+        { profilePic: base64String },
+        {
+          onUploadProgress: (progressEvent) => {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percent);
+          }
+        }
+      );
       const userData = response.data;
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
@@ -112,6 +122,8 @@ export const AuthProvider = ({ children }) => {
         success: false,
         message: error.response?.data?.message || 'Failed to update profile picture'
       };
+    } finally {
+      setUploadProgress(null);
     }
   };
 
@@ -146,7 +158,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfilePic, blockUser, unblockUser, theme, toggleTheme, API_URL }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfilePic, uploadProgress, blockUser, unblockUser, theme, toggleTheme, API_URL }}>
       {children}
     </AuthContext.Provider>
   );
