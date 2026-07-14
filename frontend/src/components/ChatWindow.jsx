@@ -216,7 +216,7 @@ const ChatWindow = () => {
                        Object.keys(typingUsers[activeChat._id]).some(uid => uid !== user._id);
 
   return (
-    <div className="flex-1 h-full flex flex-col bg-bg-primary overflow-hidden transition-colors relative">
+    <div className="flex-1 h-full flex flex-col bg-bg-primary overflow-hidden min-h-0 transition-colors relative">
       {/* Toast Notification */}
       {toast && (
         <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-40 bg-black text-white text-[10px] font-bold uppercase tracking-wider px-4 py-2 border border-border-custom shadow-lg rounded-sm animate-fadeIn">
