@@ -52,7 +52,11 @@ const UserSchema = new mongoose.Schema({
   verificationOtp: {
     code: { type: String },
     expiresAt: { type: Date }
-  }
+  },
+  blockedUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }]
 });
 
 // Pre-save hook to hash password if modified

@@ -142,8 +142,38 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const blockUser = async (targetId) => {
+    try {
+      const response = await axios.post(`${API_URL}/users/${targetId}/block`);
+      const updatedUser = { ...user, blockedUsers: response.data.blockedUsers };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to block user'
+      };
+    }
+  };
+
+  const unblockUser = async (targetId) => {
+    try {
+      const response = await axios.post(`${API_URL}/users/${targetId}/unblock`);
+      const updatedUser = { ...user, blockedUsers: response.data.blockedUsers };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to unblock user'
+      };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfilePic, verifyOtp, resendOtp, theme, toggleTheme, API_URL }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfilePic, verifyOtp, resendOtp, blockUser, unblockUser, theme, toggleTheme, API_URL }}>
       {children}
     </AuthContext.Provider>
   );

@@ -7,6 +7,36 @@ const SocketContext = createContext();
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
+// Synthesize a clean, premium notification chime using Web Audio API (100% offline-ready, no files needed)
+const playChime = () => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(880, ctx.currentTime); // High A note
+    
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(1320, ctx.currentTime); // E note (harmonic)
+    
+    gainNode.gain.setValueAtTime(0.12, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    osc1.start();
+    osc2.start();
+    osc1.stop(ctx.currentTime + 0.6);
+    osc2.stop(ctx.currentTime + 0.6);
+  } catch (e) {
+    console.error("Audio chime error:", e);
+  }
+};
+
 export const SocketProvider = ({ children }) => {
   const { token, user, API_URL } = useAuth();
   const [socket, setSocket] = useState(null);
@@ -42,35 +72,27 @@ export const SocketProvider = ({ children }) => {
       return;
     }
 
+    // Connect with JWT auth handshake token
     const newSocket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket'],
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000
+      reconnectionAttempts: 5
     });
 
     newSocket.on('connect', () => {
-      console.log('Connected to socket server');
+      console.log('Socket.IO connection established locally.');
       fetchChats();
     });
 
-    newSocket.on('connect_error', (err) => {
-      console.error('Socket connection error:', err);
-    });
-
-    // Listen for presence updates
-    newSocket.on('presence_update', ({ userId, isOnline, lastSeen }) => {
-      setOnlineUsers(prev => ({
-        ...prev,
-        [userId]: { isOnline, lastSeen }
-      }));
-
+    // Populate active online participants list
+    newSocket.on('user_list', (usersMap) => {
+      setOnlineUsers(usersMap);
+      
       // Update in our chats list state to show live indicators
       setChats(prevChats => prevChats.map(c => {
         const updatedParticipants = c.participants.map(p => {
-          if (p._id === userId) {
-            return { ...p, isOnline, lastSeen };
+          if (usersMap[p._id]) {
+            return { ...p, ...usersMap[p._id] };
           }
           return p;
         });
@@ -86,7 +108,23 @@ export const SocketProvider = ({ children }) => {
       }
 
       // Check if it's the active chat
-      if (activeChat && activeChat._id === msg.chatId) {
+      const isFromSelf = msg.senderId._id === user._id;
+      const isActive = activeChat && activeChat._id === msg.chatId;
+
+      // Play Chime sound if from peer, not active, and chat is not muted
+      if (!isFromSelf && (!isActive || document.hidden)) {
+        setChats(prevChats => {
+          const matchedChat = prevChats.find(c => c._id === msg.chatId);
+          const matchedSettings = matchedChat?.settings?.find(s => s.userId.toString() === user._id.toString());
+          const isMuted = matchedSettings ? matchedSettings.isMuted : false;
+          if (!isMuted) {
+            playChime();
+          }
+          return prevChats;
+        });
+      }
+
+      if (isActive) {
         setMessages(prev => {
           // Prevent duplicates
           if (prev.some(m => m._id === msg._id)) return prev;
@@ -101,10 +139,8 @@ export const SocketProvider = ({ children }) => {
 
       // Update chats list lastMessage and unread count
       setChats(prevChats => {
-        return prevChats.map(c => {
+        const updated = prevChats.map(c => {
           if (c._id === msg.chatId) {
-            const isFromSelf = msg.senderId._id === user._id;
-            const isActive = activeChat && activeChat._id === msg.chatId;
             return {
               ...c,
               lastMessage: msg,
@@ -112,6 +148,21 @@ export const SocketProvider = ({ children }) => {
             };
           }
           return c;
+        });
+
+        // Sort by Pinned, then latest message time
+        return [...updated].sort((a, b) => {
+          const aSettings = a.settings?.find(s => s.userId.toString() === user._id.toString());
+          const bSettings = b.settings?.find(s => s.userId.toString() === user._id.toString());
+          const aPinned = aSettings ? aSettings.isPinned : false;
+          const bPinned = bSettings ? bSettings.isPinned : false;
+
+          if (aPinned && !bPinned) return -1;
+          if (!aPinned && bPinned) return 1;
+
+          const dateA = a.lastMessage ? new Date(a.lastMessage.createdAt) : new Date(a.createdAt);
+          const dateB = b.lastMessage ? new Date(b.lastMessage.createdAt) : new Date(b.createdAt);
+          return dateB - dateA;
         });
       });
     });
@@ -134,7 +185,6 @@ export const SocketProvider = ({ children }) => {
 
     // Listen for chat read notifications
     newSocket.on('chat_read', ({ chatId, readerId }) => {
-      // If the reader is the other person, mark all our sent messages in this chat as read
       if (readerId !== user._id) {
         if (activeChat && activeChat._id === chatId) {
           setMessages(prev => prev.map(m => m.senderId._id === user._id ? { ...m, status: 'read' } : m));
@@ -152,13 +202,6 @@ export const SocketProvider = ({ children }) => {
           }
           return c;
         }));
-      }
-    });
-
-    // Listen for reactions updates
-    newSocket.on('message_reaction_update', ({ messageId, chatId, reactions }) => {
-      if (activeChat && activeChat._id === chatId) {
-        setMessages(prev => prev.map(m => m._id === messageId ? { ...m, reactions } : m));
       }
     });
 
@@ -183,12 +226,37 @@ export const SocketProvider = ({ children }) => {
       });
     });
 
+    // Listen for presence updates
+    newSocket.on('presence_update', ({ userId, isOnline, lastSeen }) => {
+      setOnlineUsers(prev => ({
+        ...prev,
+        [userId]: { isOnline, lastSeen }
+      }));
+
+      setChats(prevChats => prevChats.map(c => {
+        const updatedParticipants = c.participants.map(p => {
+          if (p._id === userId) {
+            return { ...p, isOnline, lastSeen };
+          }
+          return p;
+        });
+        return { ...c, participants: updatedParticipants };
+      }));
+    });
+
+    // Listen for message reactions updates
+    newSocket.on('message_reaction_update', ({ messageId, chatId, reactions }) => {
+      if (activeChat && activeChat._id === chatId) {
+        setMessages(prev => prev.map(m => m._id === messageId ? { ...m, reactions } : m));
+      }
+    });
+
     setSocket(newSocket);
 
     return () => {
       newSocket.disconnect();
     };
-  }, [token, user, activeChat?._id]);
+  }, [token, activeChat?._id]);
 
   // Load message history when active chat changes
   useEffect(() => {
@@ -220,11 +288,11 @@ export const SocketProvider = ({ children }) => {
     loadMessages();
   }, [activeChat?._id, token, socket]);
 
-  const sendMessage = (chatId, text) => {
+  const sendMessage = (chatId, text, replyToId) => {
     if (!socket) return;
-    socket.emit('send_message', { chatId, text }, (response) => {
+    socket.emit('send_message', { chatId, text, replyToId }, (response) => {
       if (response && response.success && response.message) {
-        // Optimistically update message if it wasn't caught by the general listener yet
+        // Update messages state
         setMessages(prev => {
           if (prev.some(m => m._id === response.message._id)) return prev;
           return [...prev, response.message];
@@ -238,9 +306,65 @@ export const SocketProvider = ({ children }) => {
           return c;
         }));
       } else {
-        console.error('Error sending message via callback:', response?.error);
+        alert(response?.error || 'Failed to send message');
       }
     });
+  };
+
+  const togglePinChat = async (chatId) => {
+    try {
+      const response = await axios.put(`${API_URL}/chats/${chatId}/pin`);
+      
+      // Update local settings in chats list
+      setChats(prev => {
+        const updated = prev.map(c => c._id === chatId ? { ...c, settings: response.data.settings } : c);
+        
+        // Re-sort chats by pinned status
+        return [...updated].sort((a, b) => {
+          const aSettings = a.settings?.find(s => s.userId.toString() === user._id.toString());
+          const bSettings = b.settings?.find(s => s.userId.toString() === user._id.toString());
+          const aPinned = aSettings ? aSettings.isPinned : false;
+          const bPinned = bSettings ? bSettings.isPinned : false;
+
+          if (aPinned && !bPinned) return -1;
+          if (!aPinned && bPinned) return 1;
+
+          const dateA = a.lastMessage ? new Date(a.lastMessage.createdAt) : new Date(a.createdAt);
+          const dateB = b.lastMessage ? new Date(b.lastMessage.createdAt) : new Date(b.createdAt);
+          return dateB - dateA;
+        });
+      });
+
+      if (activeChat && activeChat._id === chatId) {
+        setActiveChat(prev => ({ ...prev, settings: response.data.settings }));
+      }
+    } catch (err) {
+      console.error('Failed to pin chat:', err);
+    }
+  };
+
+  const toggleMuteChat = async (chatId) => {
+    try {
+      const response = await axios.put(`${API_URL}/chats/${chatId}/mute`);
+      setChats(prev => prev.map(c => c._id === chatId ? { ...c, settings: response.data.settings } : c));
+      if (activeChat && activeChat._id === chatId) {
+        setActiveChat(prev => ({ ...prev, settings: response.data.settings }));
+      }
+    } catch (err) {
+      console.error('Failed to mute chat:', err);
+    }
+  };
+
+  const removeChat = async (chatId) => {
+    try {
+      await axios.delete(`${API_URL}/chats/${chatId}`);
+      setChats(prev => prev.filter(c => c._id !== chatId));
+      if (activeChat && activeChat._id === chatId) {
+        setActiveChat(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete chat:', err);
+    }
   };
 
   const emitTyping = (chatId) => {
@@ -269,6 +393,9 @@ export const SocketProvider = ({ children }) => {
       onlineUsers,
       sendMessage,
       reactToMessage,
+      togglePinChat,
+      toggleMuteChat,
+      removeChat,
       emitTyping,
       emitStopTyping,
       fetchChats
@@ -278,5 +405,5 @@ export const SocketProvider = ({ children }) => {
   );
 };
 
+export { SocketContext };
 export const useSocket = () => useContext(SocketContext);
-export default SocketContext;

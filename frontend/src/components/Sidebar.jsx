@@ -1,15 +1,26 @@
-import React, { useState, useRef } from 'react';
-import { LogOut, UserPlus, MessageSquare, Search, Sun, Moon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { LogOut, UserPlus, MessageSquare, Search, Sun, Moon, Pin, VolumeX, MoreVertical, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import UserAvatar from './UserAvatar';
 import ContactSearch from './ContactSearch';
 
 const Sidebar = () => {
-  const { user, logout, updateProfilePic, theme, toggleTheme } = useAuth();
-  const { chats, chatsLoading, activeChat, setActiveChat } = useSocket();
+  const { user, logout, theme, toggleTheme } = useAuth();
+  const { chats, chatsLoading, activeChat, setActiveChat, togglePinChat, toggleMuteChat, removeChat } = useSocket();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [activeMenuChatId, setActiveMenuChatId] = useState(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setActiveMenuChatId(null);
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, []);
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -45,19 +56,16 @@ const Sidebar = () => {
     const date = new Date(timestamp);
     const now = new Date();
     
-    // Check if today
     if (date.toDateString() === now.toDateString()) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
     
-    // Check if yesterday
     const yesterday = new Date();
     yesterday.setDate(now.getDate() - 1);
     if (date.toDateString() === yesterday.toDateString()) {
       return 'Yesterday';
     }
 
-    // Otherwise show date
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
@@ -84,7 +92,6 @@ const Sidebar = () => {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -109,7 +116,7 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* Quick Search trigger box */}
+      {/* Quick Search */}
       <div className="p-3">
         <button
           onClick={() => setIsSearchOpen(true)}
@@ -154,44 +161,112 @@ const Sidebar = () => {
             const isSelected = activeChat && activeChat._id === chat._id;
             const hasUnread = chat.unreadCount > 0;
             const lastMsg = chat.lastMessage;
+
+            // Fetch user-specific Pin/Mute values
+            const chatSettings = chat.settings?.find(s => s.userId.toString() === user._id.toString());
+            const isPinned = chatSettings ? chatSettings.isPinned : false;
+            const isMuted = chatSettings ? chatSettings.isMuted : false;
             
             return (
               <div
                 key={chat._id}
-                onClick={() => setActiveChat(chat)}
-                className={`flex items-center gap-3 p-3 rounded-sm cursor-pointer transition-all border ${
-                  isSelected
-                    ? 'bg-bg-secondary border-accent-custom ring-1 ring-accent-custom text-text-primary shadow-md'
-                    : 'bg-bg-secondary border-border-custom hover:border-text-muted hover:bg-bg-tertiary text-text-secondary hover:text-text-primary shadow-sm'
-                }`}
+                className="relative group"
               >
-                <UserAvatar username={peer.username} profilePic={peer.profilePic} isOnline={peer.isOnline} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline mb-1">
-                    <h4 className="font-bold text-xs tracking-wide text-text-primary truncate">{peer.username}</h4>
-                    <span className="text-[9px] font-medium text-text-muted">
-                      {formatTime(lastMsg?.createdAt || chat.createdAt)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <p className={`text-[11px] truncate max-w-[130px] ${hasUnread ? 'text-text-primary font-bold' : 'text-text-muted'}`}>
-                      {lastMsg ? (
-                        <>
-                          {lastMsg.senderId._id === user._id ? 'You: ' : ''}
-                          {lastMsg.text}
-                        </>
-                      ) : (
-                        <span className="italic text-text-muted opacity-50 text-[10px]">New dialogue opened</span>
-                      )}
-                    </p>
-                    
-                    {hasUnread && (
-                      <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-sm bg-accent-custom px-1 text-[9px] font-bold text-bubble-self-text shadow-sm">
-                        {chat.unreadCount}
+                <div
+                  onClick={() => setActiveChat(chat)}
+                  className={`flex items-center gap-3 p-3 rounded-sm cursor-pointer transition-all border ${
+                    isSelected
+                      ? 'bg-bg-secondary border-accent-custom ring-1 ring-accent-custom text-text-primary shadow-md'
+                      : 'bg-bg-secondary border-border-custom hover:border-text-muted hover:bg-bg-tertiary text-text-secondary hover:text-text-primary shadow-sm'
+                  }`}
+                >
+                  <UserAvatar username={peer.username} profilePic={peer.profilePic} isOnline={peer.isOnline} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-baseline mb-0.5">
+                      <div className="flex items-center gap-1 min-w-0">
+                        <h4 className="font-bold text-xs tracking-wide text-text-primary truncate">{peer.username}</h4>
+                        {isPinned && <Pin className="w-3 h-3 text-accent-custom flex-shrink-0" />}
+                        {isMuted && <VolumeX className="w-3 h-3 text-text-muted flex-shrink-0" />}
+                      </div>
+                      <span className="text-[9px] font-medium text-text-muted flex-shrink-0">
+                        {formatTime(lastMsg?.createdAt || chat.createdAt)}
                       </span>
-                    )}
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <p className={`text-[11px] truncate max-w-[120px] ${hasUnread ? 'text-text-primary font-bold' : 'text-text-muted'}`}>
+                        {lastMsg ? (
+                          <>
+                            {lastMsg.senderId._id === user._id ? 'You: ' : ''}
+                            {lastMsg.text}
+                          </>
+                        ) : (
+                          <span className="italic text-text-muted opacity-50 text-[10px]">New dialogue opened</span>
+                        )}
+                      </p>
+                      
+                      <div className="flex items-center gap-1.5">
+                        {hasUnread && (
+                          <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-sm bg-accent-custom px-1 text-[9px] font-bold text-bubble-self-text shadow-sm">
+                            {chat.unreadCount}
+                          </span>
+                        )}
+                        
+                        {/* 3-Dot Options Action Trigger */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuChatId(activeMenuChatId === chat._id ? null : chat._id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-bg-tertiary text-text-secondary hover:text-text-primary rounded-sm transition-all cursor-pointer"
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                {/* Inline Action Options Dropdown */}
+                {activeMenuChatId === chat._id && (
+                  <div
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className="absolute right-2 top-10 z-30 bg-bg-secondary border border-border-custom shadow-xl p-1.5 rounded-sm w-36 animate-fadeIn"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        togglePinChat(chat._id);
+                        setActiveMenuChatId(null);
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Pin className="w-3 h-3" /> {isPinned ? 'Unpin Chat' : 'Pin Chat'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleMuteChat(chat._id);
+                        setActiveMenuChatId(null);
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-text-secondary hover:text-text-primary hover:bg-bg-tertiary rounded-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <VolumeX className="w-3 h-3" /> {isMuted ? 'Unmute Chat' : 'Mute Chat'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('Delete this conversation? All messages will be permanently deleted.')) {
+                          removeChat(chat._id);
+                        }
+                        setActiveMenuChatId(null);
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wider text-rose-600 hover:text-rose-700 hover:bg-bg-tertiary rounded-sm transition-all flex items-center gap-1.5 cursor-pointer border-t border-border-custom mt-1 pt-2"
+                    >
+                      <Trash2 className="w-3 h-3" /> Delete Chat
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })

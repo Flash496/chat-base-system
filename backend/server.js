@@ -103,7 +103,7 @@ io.on('connection', async (socket) => {
   });
 
   // EVENT: Send a message
-  socket.on('send_message', async ({ chatId, text }, callback) => {
+  socket.on('send_message', async ({ chatId, text, replyToId }, callback) => {
     try {
       if (!chatId || !text) {
         if (callback) callback({ error: 'ChatId and text are required' });
@@ -121,9 +121,23 @@ io.on('connection', async (socket) => {
         return;
       }
 
-      // Check if other participant is online to instantly deliver
-      // For DMs, find the other participant's ID
+      // Check blocked user relationships
       const recipientId = chat.participants.find(p => p.toString() !== userId);
+      if (recipientId) {
+        const recipient = await User.findById(recipientId);
+        const sender = await User.findById(userId);
+        
+        if (recipient && recipient.blockedUsers.includes(userId)) {
+          if (callback) callback({ error: 'You are blocked by this user' });
+          return;
+        }
+        if (sender && sender.blockedUsers.includes(recipientId)) {
+          if (callback) callback({ error: 'You have blocked this user' });
+          return;
+        }
+      }
+
+      // Check if other participant is online to instantly deliver
       const isRecipientOnline = recipientId ? activeUsers.has(recipientId.toString()) : false;
       const initialStatus = isRecipientOnline ? 'delivered' : 'sent';
 
@@ -132,10 +146,17 @@ io.on('connection', async (socket) => {
         chatId,
         senderId: socket.user._id,
         text,
-        status: initialStatus
+        status: initialStatus,
+        replyTo: replyToId || undefined
       });
 
-      const populatedMessage = await message.populate('senderId', '_id username');
+      const populatedMessage = await message.populate([
+        { path: 'senderId', select: '_id username' },
+        {
+          path: 'replyTo',
+          populate: { path: 'senderId', select: '_id username' }
+        }
+      ]);
 
       // Broadcast to room (including sender)
       io.to(chatId).emit('new_message', populatedMessage);

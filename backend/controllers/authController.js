@@ -101,6 +101,7 @@ const register = async (req, res) => {
         profilePic: user.profilePic || '',
         isEmailVerified: user.isEmailVerified,
         isPhoneVerified: user.isPhoneVerified,
+        blockedUsers: user.blockedUsers || [],
         token: generateToken(user._id),
       });
     } else {
@@ -150,6 +151,7 @@ const login = async (req, res) => {
       profilePic: user.profilePic || '',
       isEmailVerified: user.isEmailVerified,
       isPhoneVerified: user.isPhoneVerified,
+      blockedUsers: user.blockedUsers || [],
       token: generateToken(user._id),
     });
   } catch (error) {

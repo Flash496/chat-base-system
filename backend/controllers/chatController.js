@@ -31,8 +31,17 @@ const getChats = async (req, res) => {
       };
     }));
 
-    // Sort by latest message time or chat creation time
+    // Sort: Pinned chats float to the top, then sort by latest message/chat creation date
     chatsWithMetadata.sort((a, b) => {
+      const aSettings = a.settings?.find(s => s.userId.toString() === req.user._id.toString());
+      const bSettings = b.settings?.find(s => s.userId.toString() === req.user._id.toString());
+      
+      const aPinned = aSettings ? aSettings.isPinned : false;
+      const bPinned = bSettings ? bSettings.isPinned : false;
+
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+
       const dateA = a.lastMessage ? new Date(a.lastMessage.createdAt) : new Date(a.createdAt);
       const dateB = b.lastMessage ? new Date(b.lastMessage.createdAt) : new Date(b.createdAt);
       return dateB - dateA;
@@ -112,12 +121,16 @@ const getMessages = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to view messages in this chat' });
     }
 
-    // Load recent messages
+    // Load recent messages, populating replyTo and its senderId
     const messages = await Message.find({ chatId })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .populate('senderId', '_id username');
+      .populate('senderId', '_id username')
+      .populate({
+        path: 'replyTo',
+        populate: { path: 'senderId', select: '_id username' }
+      });
 
     // Return in chronological order (oldest to newest)
     res.json(messages.reverse());
@@ -127,8 +140,87 @@ const getMessages = async (req, res) => {
   }
 };
 
+// @desc    Toggle pin status for a chat
+// @route   PUT /api/chats/:id/pin
+// @access  Private
+const pinChat = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const chat = await Chat.findOne({ _id: id, participants: req.user._id });
+    if (!chat) {
+      return res.status(403).json({ message: 'Unauthorized action on this conversation' });
+    }
+
+    let userSettings = chat.settings.find(s => s.userId.toString() === req.user._id.toString());
+    if (!userSettings) {
+      chat.settings.push({ userId: req.user._id, isPinned: true });
+    } else {
+      userSettings.isPinned = !userSettings.isPinned;
+    }
+
+    await chat.save();
+    res.json(chat);
+  } catch (error) {
+    console.error('Pin Chat Error:', error);
+    res.status(500).json({ message: error.message || 'Server error pinning chat' });
+  }
+};
+
+// @desc    Toggle mute status for a chat
+// @route   PUT /api/chats/:id/mute
+// @access  Private
+const muteChat = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const chat = await Chat.findOne({ _id: id, participants: req.user._id });
+    if (!chat) {
+      return res.status(403).json({ message: 'Unauthorized action on this conversation' });
+    }
+
+    let userSettings = chat.settings.find(s => s.userId.toString() === req.user._id.toString());
+    if (!userSettings) {
+      chat.settings.push({ userId: req.user._id, isMuted: true });
+    } else {
+      userSettings.isMuted = !userSettings.isMuted;
+    }
+
+    await chat.save();
+    res.json(chat);
+  } catch (error) {
+    console.error('Mute Chat Error:', error);
+    res.status(500).json({ message: error.message || 'Server error muting chat' });
+  }
+};
+
+// @desc    Delete a chat and its messages
+// @route   DELETE /api/chats/:id
+// @access  Private
+const deleteChat = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const chat = await Chat.findOne({ _id: id, participants: req.user._id });
+    if (!chat) {
+      return res.status(403).json({ message: 'Unauthorized action on this conversation' });
+    }
+
+    // Delete all messages in the chat
+    await Message.deleteMany({ chatId: chat._id });
+    
+    // Delete the chat itself
+    await Chat.findByIdAndDelete(chat._id);
+
+    res.json({ message: 'Conversation deleted successfully' });
+  } catch (error) {
+    console.error('Delete Chat Error:', error);
+    res.status(500).json({ message: error.message || 'Server error deleting chat' });
+  }
+};
+
 module.exports = {
   getChats,
   createChat,
   getMessages,
+  pinChat,
+  muteChat,
+  deleteChat,
 };

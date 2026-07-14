@@ -56,7 +56,57 @@ const updateProfilePic = async (req, res) => {
   }
 };
 
+// @desc    Block a user
+// @route   POST /api/users/:id/block
+// @access  Private
+const blockUser = async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (id === req.user._id.toString()) {
+      return res.status(400).json({ message: 'You cannot block yourself' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (!user.blockedUsers.includes(id)) {
+      user.blockedUsers.push(id);
+      await user.save();
+    }
+
+    res.json({ message: 'User blocked successfully', blockedUsers: user.blockedUsers });
+  } catch (error) {
+    console.error('Block User Error:', error);
+    res.status(500).json({ message: error.message || 'Server error blocking user' });
+  }
+};
+
+// @desc    Unblock a user
+// @route   POST /api/users/:id/unblock
+// @access  Private
+const unblockUser = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.blockedUsers = user.blockedUsers.filter(b => b.toString() !== id);
+    await user.save();
+
+    res.json({ message: 'User unblocked successfully', blockedUsers: user.blockedUsers });
+  } catch (error) {
+    console.error('Unblock User Error:', error);
+    res.status(500).json({ message: error.message || 'Server error unblocking user' });
+  }
+};
+
 module.exports = {
   searchUsers,
   updateProfilePic,
+  blockUser,
+  unblockUser,
 };

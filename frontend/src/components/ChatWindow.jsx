@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Check, CheckCheck, MessageCircle, AlertCircle, Sparkles, ArrowLeft, X } from 'lucide-react';
+import { Send, Check, CheckCheck, MessageCircle, AlertCircle, Sparkles, ArrowLeft, X, CornerUpLeft, Ban, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import UserAvatar from './UserAvatar';
 
 const ChatWindow = () => {
-  const { user } = useAuth();
+  const { user, blockUser, unblockUser } = useAuth();
   const {
     chats,
     activeChat,
@@ -15,15 +15,14 @@ const ChatWindow = () => {
     typingUsers,
     onlineUsers,
     sendMessage,
-    reactToMessage,
-    emitTyping,
-    emitStopTyping
+    reactToMessage
   } = useSocket();
 
   const [inputText, setInputText] = useState('');
   const [isTypingLocal, setIsTypingLocal] = useState(false);
   const [activeMenuMsgId, setActiveMenuMsgId] = useState(null);
   const [forwardingMsg, setForwardingMsg] = useState(null);
+  const [replyingToMsg, setReplyingToMsg] = useState(null);
   const [toast, setToast] = useState('');
   
   const messagesEndRef = useRef(null);
@@ -40,6 +39,7 @@ const ChatWindow = () => {
     setIsTypingLocal(false);
     setActiveMenuMsgId(null);
     setForwardingMsg(null);
+    setReplyingToMsg(null);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
   }, [activeChat?._id]);
 
@@ -69,6 +69,11 @@ const ChatWindow = () => {
     setActiveMenuMsgId(null);
   };
 
+  const handleForwardClick = (msg) => {
+    setForwardingMsg(msg);
+    setActiveMenuMsgId(null);
+  };
+
   const handleForward = (chatId, recipientName) => {
     if (!forwardingMsg) return;
     sendMessage(chatId, forwardingMsg.text);
@@ -78,6 +83,11 @@ const ChatWindow = () => {
 
   const handleReaction = (messageId, emoji) => {
     reactToMessage(messageId, activeChat._id, emoji);
+    setActiveMenuMsgId(null);
+  };
+
+  const handleReplyClick = (msg) => {
+    setReplyingToMsg(msg);
     setActiveMenuMsgId(null);
   };
 
@@ -103,6 +113,29 @@ const ChatWindow = () => {
   const livePresence = onlineUsers[peer?._id];
   const isOnline = livePresence ? livePresence.isOnline : peer?.isOnline;
   const lastSeen = livePresence ? livePresence.lastSeen : peer?.lastSeen;
+
+  // Block states
+  const isPeerBlocked = user?.blockedUsers?.includes(peer?._id);
+
+  const handleBlockToggle = async () => {
+    if (isPeerBlocked) {
+      const res = await unblockUser(peer._id);
+      if (res.success) {
+        showToast(`Unblocked ${peer.username}`);
+      } else {
+        alert(res.message);
+      }
+    } else {
+      if (confirm(`Block ${peer.username}? You will not receive any further messages from them.`)) {
+        const res = await blockUser(peer._id);
+        if (res.success) {
+          showToast(`Blocked ${peer.username}`);
+        } else {
+          alert(res.message);
+        }
+      }
+    }
+  };
 
   const formatLastSeen = (lastSeenTime) => {
     if (!lastSeenTime) return 'Offline';
@@ -137,8 +170,9 @@ const ChatWindow = () => {
     e.preventDefault();
     if (!inputText.trim()) return;
 
-    sendMessage(activeChat._id, inputText.trim());
+    sendMessage(activeChat._id, inputText.trim(), replyingToMsg?._id);
     setInputText('');
+    setReplyingToMsg(null);
 
     // Stop typing status instantly
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -182,8 +216,17 @@ const ChatWindow = () => {
           </div>
         </div>
 
-        {/* Right side Actions: Close Chat */}
-        <div>
+        {/* Right side Actions: Block & Close Chat */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleBlockToggle}
+            className={`p-1.5 rounded-sm hover:bg-bg-tertiary transition-all flex items-center justify-center cursor-pointer ${
+              isPeerBlocked ? 'text-emerald-600' : 'text-rose-600'
+            }`}
+            title={isPeerBlocked ? 'Unblock User' : 'Block User'}
+          >
+            {isPeerBlocked ? <ShieldCheck className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+          </button>
           <button
             onClick={() => setActiveChat(null)}
             className="p-1.5 rounded-sm hover:bg-bg-tertiary text-text-secondary hover:text-text-primary cursor-pointer transition-all flex items-center justify-center"
@@ -230,6 +273,20 @@ const ChatWindow = () => {
                         : 'bg-bg-secondary text-text-primary border-border-custom rounded-tr-xl rounded-br-2xl rounded-bl-none rounded-tl-md transform rotate-[-0.3deg]'
                     }`}
                   >
+                    {/* Quoted Reply Box inside bubble */}
+                    {msg.replyTo && (
+                      <div className={`text-[10px] rounded-xs border-l-2 p-1.5 mb-2 leading-relaxed text-left opacity-90 ${
+                        isSelf 
+                          ? 'bg-black bg-opacity-25 border-white text-white' 
+                          : 'bg-bg-tertiary border-accent-custom text-text-secondary'
+                      }`}>
+                        <div className="font-bold text-[9px] uppercase tracking-wider mb-0.5">
+                          {msg.replyTo.senderId?._id === user._id ? 'You' : msg.replyTo.senderId?.username}
+                        </div>
+                        <div className="truncate">{msg.replyTo.text}</div>
+                      </div>
+                    )}
+
                     <p className="text-sm break-words leading-relaxed pr-6 font-medium">{msg.text}</p>
                     
                     {/* Footer metadata inside bubble */}
@@ -288,8 +345,15 @@ const ChatWindow = () => {
                         ))}
                       </div>
                       
-                      {/* Copy, Forward choices */}
+                      {/* Actions */}
                       <div className="flex flex-col text-left">
+                        <button
+                          type="button"
+                          onClick={() => handleReplyClick(msg)}
+                          className="text-[9px] font-bold uppercase tracking-wider text-text-secondary hover:text-text-primary hover:bg-bg-tertiary px-2 py-1.5 rounded-sm transition-all text-left cursor-pointer flex items-center gap-1.5"
+                        >
+                          <CornerUpLeft className="w-3 h-3" /> Reply
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleCopy(msg.text)}
@@ -330,25 +394,45 @@ const ChatWindow = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Bar */}
-      <form onSubmit={handleSend} className="p-4 border-t border-border-custom bg-bg-secondary transition-colors">
-        <div className="flex gap-3 items-center">
-          <input
-            type="text"
-            placeholder="Type a message..."
-            value={inputText}
-            onChange={handleInputChange}
-            className="flex-1 bg-bg-primary border border-border-custom focus:border-accent-custom rounded-sm py-3 px-4 text-xs font-medium text-text-primary placeholder-text-muted outline-none transition-all"
-          />
-          <button
-            type="submit"
-            disabled={!inputText.trim()}
-            className="py-3 px-5 bg-black hover:bg-neutral-900 disabled:bg-bg-tertiary text-white disabled:text-text-muted font-bold text-xs uppercase tracking-widest rounded-sm shadow-sm transition-all hover:scale-102 active:scale-98 cursor-pointer border border-transparent disabled:border-border-custom"
-          >
-            Send
-          </button>
-        </div>
-      </form>
+      {/* Input Bar with Reply Quote Banner */}
+      <div className="p-4 border-t border-border-custom bg-bg-secondary transition-all">
+        {replyingToMsg && (
+          <div className="flex justify-between items-center bg-bg-primary border border-border-custom rounded-sm px-4 py-2.5 mb-2.5 text-xs text-text-secondary animate-fadeIn">
+            <div className="min-w-0">
+              <span className="font-bold text-[9px] uppercase tracking-wider text-accent-custom block">
+                Replying to {replyingToMsg.senderId?._id === user._id ? 'yourself' : replyingToMsg.senderId?.username}
+              </span>
+              <p className="truncate text-text-muted font-medium mt-0.5">{replyingToMsg.text}</p>
+            </div>
+            <button
+              onClick={() => setReplyingToMsg(null)}
+              className="p-1 rounded-sm text-text-muted hover:text-text-primary hover:bg-bg-tertiary transition-colors cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={handleSend}>
+          <div className="flex gap-3 items-center">
+            <input
+              type="text"
+              placeholder={isPeerBlocked ? "Unblock this user to send messages..." : "Type a message..."}
+              value={inputText}
+              disabled={isPeerBlocked}
+              onChange={handleInputChange}
+              className="flex-1 bg-bg-primary border border-border-custom focus:border-accent-custom rounded-sm py-3 px-4 text-xs font-medium text-text-primary placeholder-text-muted outline-none transition-all disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={!inputText.trim() || isPeerBlocked}
+              className="py-3 px-5 bg-black hover:bg-neutral-900 disabled:bg-bg-tertiary text-white disabled:text-text-muted font-bold text-xs uppercase tracking-widest rounded-sm shadow-sm transition-all hover:scale-102 active:scale-98 cursor-pointer border border-transparent disabled:border-border-custom"
+            >
+              Send
+            </button>
+          </div>
+        </form>
+      </div>
 
       {/* Forward Modal */}
       {forwardingMsg && (
