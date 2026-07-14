@@ -43,13 +43,13 @@ export const SocketProvider = ({ children }) => {
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [messagesCache, setMessagesCache] = useState({}); // Cache of chatId -> messages[]
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [chatsLoading, setChatsLoading] = useState(true);
   const [typingUsers, setTypingUsers] = useState({}); // chatId -> { userId: username }
   const [onlineUsers, setOnlineUsers] = useState({}); // userId -> { isOnline, lastSeen }
 
   // Use refs to prevent socket listeners from getting stale values when activeChat/chats change.
-  // This allows the socket connection to remain stable and open without reconnecting on every chat switch.
   const activeChatRef = useRef(activeChat);
   const chatsRef = useRef(chats);
   const userRef = useRef(user);
@@ -165,15 +165,24 @@ export const SocketProvider = ({ children }) => {
 
       if (isActive) {
         setMessages(prev => {
-          // Prevent duplicates
           if (prev.some(m => m._id === msg._id)) return prev;
-          return [...prev, msg];
+          const next = [...prev, msg];
+          // Update Cache
+          setMessagesCache(cache => ({ ...cache, [msg.chatId]: next }));
+          return next;
         });
 
         // If active, mark it as read immediately
         if (msg.senderId._id !== currentUser._id) {
           newSocket.emit('read_chat', { chatId: msg.chatId });
         }
+      } else {
+        // Update Cache in background
+        setMessagesCache(cache => {
+          const current = cache[msg.chatId] || [];
+          if (current.some(m => m._id === msg._id)) return cache;
+          return { ...cache, [msg.chatId]: [...current, msg] };
+        });
       }
 
       // Update chats list lastMessage and unread count
@@ -213,8 +222,19 @@ export const SocketProvider = ({ children }) => {
       if (!currentUser) return;
 
       if (currentActiveChat && currentActiveChat._id === chatId) {
-        setMessages(prev => prev.map(m => m._id === messageId ? { ...m, status } : m));
+        setMessages(prev => {
+          const next = prev.map(m => m._id === messageId ? { ...m, status } : m);
+          setMessagesCache(cache => ({ ...cache, [chatId]: next }));
+          return next;
+        });
+      } else {
+        setMessagesCache(cache => {
+          const current = cache[chatId] || [];
+          const next = current.map(m => m._id === messageId ? { ...m, status } : m);
+          return { ...cache, [chatId]: next };
+        });
       }
+
       setChats(prevChats => prevChats.map(c => {
         if (c._id === chatId && c.lastMessage && c.lastMessage._id === messageId) {
           return {
@@ -234,8 +254,19 @@ export const SocketProvider = ({ children }) => {
 
       if (readerId !== currentUser._id) {
         if (currentActiveChat && currentActiveChat._id === chatId) {
-          setMessages(prev => prev.map(m => m.senderId._id === currentUser._id ? { ...m, status: 'read' } : m));
+          setMessages(prev => {
+            const next = prev.map(m => m.senderId._id === currentUser._id ? { ...m, status: 'read' } : m);
+            setMessagesCache(cache => ({ ...cache, [chatId]: next }));
+            return next;
+          });
+        } else {
+          setMessagesCache(cache => {
+            const current = cache[chatId] || [];
+            const next = current.map(m => m.senderId._id === currentUser._id ? { ...m, status: 'read' } : m);
+            return { ...cache, [chatId]: next };
+          });
         }
+
         setChats(prevChats => prevChats.map(c => {
           if (c._id === chatId) {
             const updatedLast = c.lastMessage && c.lastMessage.senderId._id === currentUser._id
@@ -298,7 +329,17 @@ export const SocketProvider = ({ children }) => {
     newSocket.on('message_reaction_update', ({ messageId, chatId, reactions }) => {
       const currentActiveChat = activeChatRef.current;
       if (currentActiveChat && currentActiveChat._id === chatId) {
-        setMessages(prev => prev.map(m => m._id === messageId ? { ...m, reactions } : m));
+        setMessages(prev => {
+          const next = prev.map(m => m._id === messageId ? { ...m, reactions } : m);
+          setMessagesCache(cache => ({ ...cache, [chatId]: next }));
+          return next;
+        });
+      } else {
+        setMessagesCache(cache => {
+          const current = cache[chatId] || [];
+          const next = current.map(m => m._id === messageId ? { ...m, reactions } : m);
+          return { ...cache, [chatId]: next };
+        });
       }
     });
 
@@ -309,14 +350,29 @@ export const SocketProvider = ({ children }) => {
     };
   }, [token]);
 
-  // Load message history when active chat changes (Stable REST load)
+  // Load message history when active chat changes (Cache-First strategy)
   useEffect(() => {
     const loadMessages = async () => {
       if (!activeChat || !token) return;
-      setMessagesLoading(true);
+      
+      const cached = messagesCache[activeChat._id];
+      if (cached && cached.length > 0) {
+        setMessages(cached);
+        setMessagesLoading(false);
+      } else {
+        setMessages([]);
+        setMessagesLoading(true);
+      }
+
       try {
         const response = await axios.get(`${API_URL}/chats/${activeChat._id}/messages`);
         setMessages(response.data);
+        
+        // Populate cache
+        setMessagesCache(prev => ({
+          ...prev,
+          [activeChat._id]: response.data
+        }));
 
         // Reset unread count locally for this chat
         setChats(prevChats => prevChats.map(c => {
@@ -348,7 +404,9 @@ export const SocketProvider = ({ children }) => {
         // Update messages state
         setMessages(prev => {
           if (prev.some(m => m._id === response.message._id)) return prev;
-          return [...prev, response.message];
+          const next = [...prev, response.message];
+          setMessagesCache(cache => ({ ...cache, [chatId]: next }));
+          return next;
         });
 
         // Update chats list lastMessage

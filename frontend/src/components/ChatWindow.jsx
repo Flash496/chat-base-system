@@ -225,7 +225,7 @@ const ChatWindow = () => {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3.5 border-b border-border-custom bg-bg-secondary transition-colors">
+      <div className="flex items-center justify-between px-6 py-3.5 border-b border-border-custom bg-bg-secondary transition-colors flex-shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => setActiveChat(null)}
@@ -429,7 +429,7 @@ const ChatWindow = () => {
       </div>
 
       {/* Input Bar with Reply Quote Banner */}
-      <div className="p-4 border-t border-border-custom bg-bg-secondary transition-all">
+      <div className="p-4 border-t border-border-custom bg-bg-secondary transition-all flex-shrink-0">
         {replyingToMsg && (
           <div className="flex justify-between items-center bg-bg-primary border border-border-custom rounded-sm px-4 py-2.5 mb-2.5 text-xs text-text-secondary animate-fadeIn">
             <div className="min-w-0">
