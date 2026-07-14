@@ -41,6 +41,8 @@ app.get('/', (req, res) => {
 
 // Configure Socket.IO
 const io = socketIo(server, {
+  pingTimeout: 5000,
+  pingInterval: 10000,
   cors: {
     origin: clientUrl,
     methods: ['GET', 'POST'],
@@ -181,6 +183,53 @@ io.on('connection', async (socket) => {
       });
     } catch (err) {
       console.error('Error marking chat as read:', err);
+    }
+  });
+
+  // EVENT: React to message
+  socket.on('react_message', async ({ messageId, chatId, emoji }) => {
+    try {
+      // Validate participant
+      const chat = await Chat.findOne({
+        _id: chatId,
+        participants: socket.user._id
+      });
+      if (!chat) return;
+
+      const message = await Message.findById(messageId);
+      if (!message) return;
+
+      // Check if user already reacted
+      const existingReactionIndex = message.reactions.findIndex(
+        r => r.userId.toString() === socket.user._id.toString()
+      );
+
+      if (existingReactionIndex > -1) {
+        if (message.reactions[existingReactionIndex].emoji === emoji) {
+          // Toggle off if same emoji clicked again
+          message.reactions.splice(existingReactionIndex, 1);
+        } else {
+          // Update emoji if different clicked
+          message.reactions[existingReactionIndex].emoji = emoji;
+        }
+      } else {
+        // Add new reaction
+        message.reactions.push({
+          userId: socket.user._id,
+          emoji
+        });
+      }
+
+      await message.save();
+
+      // Broadcast reaction update to the room
+      io.to(chatId).emit('message_reaction_update', {
+        messageId,
+        chatId,
+        reactions: message.reactions
+      });
+    } catch (err) {
+      console.error('Error updating reaction:', err);
     }
   });
 

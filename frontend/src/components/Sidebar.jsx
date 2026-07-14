@@ -7,7 +7,7 @@ import ContactSearch from './ContactSearch';
 
 const Sidebar = () => {
   const { user, logout, theme, toggleTheme } = useAuth();
-  const { chats, activeChat, setActiveChat } = useSocket();
+  const { chats, chatsLoading, activeChat, setActiveChat } = useSocket();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const getOtherParticipant = (chat) => {
@@ -92,7 +92,16 @@ const Sidebar = () => {
           Conversations
         </div>
 
-        {chats.length === 0 ? (
+        {chatsLoading ? (
+          <div className="text-center py-12 px-4 text-text-muted bg-bg-secondary border border-border-custom rounded-sm shadow-sm">
+            <div className="flex gap-1.5 justify-center mb-2">
+              <span className="h-2 w-2 bg-accent-custom rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <span className="h-2 w-2 bg-accent-custom rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <span className="h-2 w-2 bg-accent-custom rounded-full animate-bounce" />
+            </div>
+            <p className="text-[10px] uppercase tracking-wider font-bold">Querying chats...</p>
+          </div>
+        ) : chats.length === 0 ? (
           <div className="text-center py-12 px-4 text-text-muted bg-bg-secondary border border-border-custom rounded-sm shadow-sm">
             <MessageSquare className="w-8 h-8 mx-auto opacity-20 mb-2" />
             <p className="text-xs">No active chats yet.</p>

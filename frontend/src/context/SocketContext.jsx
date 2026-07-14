@@ -13,17 +13,22 @@ export const SocketProvider = ({ children }) => {
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [chatsLoading, setChatsLoading] = useState(true);
   const [typingUsers, setTypingUsers] = useState({}); // chatId -> { userId: username }
   const [onlineUsers, setOnlineUsers] = useState({}); // userId -> { isOnline, lastSeen }
 
   // Load user's conversations
   const fetchChats = async () => {
     if (!token) return;
+    setChatsLoading(true);
     try {
       const response = await axios.get(`${API_URL}/chats`);
       setChats(response.data);
     } catch (error) {
       console.error('Error fetching chats:', error);
+    } finally {
+      setChatsLoading(false);
     }
   };
 
@@ -150,6 +155,13 @@ export const SocketProvider = ({ children }) => {
       }
     });
 
+    // Listen for reactions updates
+    newSocket.on('message_reaction_update', ({ messageId, chatId, reactions }) => {
+      if (activeChat && activeChat._id === chatId) {
+        setMessages(prev => prev.map(m => m._id === messageId ? { ...m, reactions } : m));
+      }
+    });
+
     // Listen for typing events
     newSocket.on('user_typing', ({ chatId, username, userId }) => {
       setTypingUsers(prev => ({
@@ -182,6 +194,7 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     const loadMessages = async () => {
       if (!activeChat || !token) return;
+      setMessagesLoading(true);
       try {
         const response = await axios.get(`${API_URL}/chats/${activeChat._id}/messages`);
         setMessages(response.data);
@@ -200,6 +213,8 @@ export const SocketProvider = ({ children }) => {
         }));
       } catch (error) {
         console.error('Error loading messages:', error);
+      } finally {
+        setMessagesLoading(false);
       }
     };
     loadMessages();
@@ -236,6 +251,10 @@ export const SocketProvider = ({ children }) => {
     if (socket) socket.emit('stop_typing', { chatId });
   };
 
+  const reactToMessage = (messageId, chatId, emoji) => {
+    if (socket) socket.emit('react_message', { messageId, chatId, emoji });
+  };
+
   return (
     <SocketContext.Provider value={{
       socket,
@@ -244,9 +263,12 @@ export const SocketProvider = ({ children }) => {
       activeChat,
       setActiveChat,
       messages,
+      messagesLoading,
+      chatsLoading,
       typingUsers,
       onlineUsers,
       sendMessage,
+      reactToMessage,
       emitTyping,
       emitStopTyping,
       fetchChats
