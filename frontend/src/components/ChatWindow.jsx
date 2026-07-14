@@ -27,6 +27,8 @@ const ChatWindow = () => {
   
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const bubbleTimerRef = useRef(null);
+  const isBubbleLongPress = useRef(false);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -89,6 +91,35 @@ const ChatWindow = () => {
   const handleReplyClick = (msg) => {
     setReplyingToMsg(msg);
     setActiveMenuMsgId(null);
+  };
+
+  // Touch and Hold handlers for Instagram-style message reactions
+  const handleBubbleTouchStart = (msgId) => {
+    isBubbleLongPress.current = false;
+    if (bubbleTimerRef.current) clearTimeout(bubbleTimerRef.current);
+    
+    bubbleTimerRef.current = setTimeout(() => {
+      isBubbleLongPress.current = true;
+      setActiveMenuMsgId(msgId);
+      if (navigator.vibrate) {
+        navigator.vibrate(40);
+      }
+    }, 500); // 500ms long press delay
+  };
+
+  const handleBubbleTouchMove = () => {
+    if (bubbleTimerRef.current) clearTimeout(bubbleTimerRef.current);
+  };
+
+  const handleBubbleTouchEnd = (e, msgId) => {
+    if (bubbleTimerRef.current) clearTimeout(bubbleTimerRef.current);
+    if (isBubbleLongPress.current) {
+      e.preventDefault();
+      e.stopPropagation();
+    } else {
+      // Toggle options on regular tap
+      setActiveMenuMsgId(activeMenuMsgId === msgId ? null : msgId);
+    }
   };
 
   if (!activeChat) {
@@ -237,8 +268,8 @@ const ChatWindow = () => {
         </div>
       </div>
 
-      {/* Message Area */}
-      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-28 space-y-5 bg-bg-primary transition-colors">
+      {/* Message Area with optimized bottom padding (pb-8 instead of pb-28) */}
+      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-8 space-y-5 bg-bg-primary transition-colors">
         {messagesLoading ? (
           <div className="flex flex-col items-center justify-center h-full text-text-muted">
             <div className="flex gap-1.5 mb-2">
@@ -264,8 +295,11 @@ const ChatWindow = () => {
                 className={`flex w-full ${isSelf ? 'justify-end' : 'justify-start'}`}
               >
                 <div className="relative group message-bubble-wrapper">
-                  {/* Crooked Hand-made Looking Message Bubble */}
+                  {/* Crooked Hand-made Looking Message Bubble with long-press support */}
                   <div
+                    onTouchStart={() => handleBubbleTouchStart(msg._id)}
+                    onTouchMove={handleBubbleTouchMove}
+                    onTouchEnd={(e) => handleBubbleTouchEnd(e, msg._id)}
                     onClick={() => setActiveMenuMsgId(activeMenuMsgId === msg._id ? null : msg._id)}
                     className={`max-w-[280px] px-4 py-2.5 shadow-sm flex flex-col relative border cursor-pointer hover:brightness-95 transition-all select-none ${
                       isSelf
@@ -423,12 +457,14 @@ const ChatWindow = () => {
               onChange={handleInputChange}
               className="flex-1 bg-bg-primary border border-border-custom focus:border-accent-custom rounded-sm py-3 px-4 text-xs font-medium text-text-primary placeholder-text-muted outline-none transition-all disabled:opacity-50"
             />
+            {/* Custom Arrow Send Icon instead of text */}
             <button
               type="submit"
               disabled={!inputText.trim() || isPeerBlocked}
-              className="py-3 px-5 bg-black hover:bg-neutral-900 disabled:bg-bg-tertiary text-white disabled:text-text-muted font-bold text-xs uppercase tracking-widest rounded-sm shadow-sm transition-all hover:scale-102 active:scale-98 cursor-pointer border border-transparent disabled:border-border-custom"
+              className="py-3 px-4.5 bg-black hover:bg-neutral-900 disabled:bg-bg-tertiary text-white disabled:text-text-muted rounded-sm shadow-sm transition-all hover:scale-102 active:scale-98 cursor-pointer border border-transparent disabled:border-border-custom flex items-center justify-center"
+              title="Send Message"
             >
-              Send
+              <Send className="w-4 h-4" />
             </button>
           </div>
         </form>

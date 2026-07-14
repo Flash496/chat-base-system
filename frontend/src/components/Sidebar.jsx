@@ -11,7 +11,10 @@ const Sidebar = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeMenuChatId, setActiveMenuChatId] = useState(null);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  
   const fileInputRef = useRef(null);
+  const longPressTimer = useRef(null);
+  const isPressAndHold = useRef(false);
 
   useEffect(() => {
     const handleOutsideClick = () => {
@@ -111,6 +114,40 @@ const Sidebar = () => {
     }
 
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  // Mobile Touch-and-Hold handlers
+  const handleTouchStart = (chatId) => {
+    isPressAndHold.current = false;
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    
+    longPressTimer.current = setTimeout(() => {
+      isPressAndHold.current = true;
+      setActiveMenuChatId(chatId);
+      if (navigator.vibrate) {
+        navigator.vibrate(40);
+      }
+    }, 600); // 600ms hold time
+  };
+
+  const handleTouchMove = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
+
+  const handleTouchEnd = (e, chat) => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    if (isPressAndHold.current) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
+  const handleChatClick = (chat) => {
+    if (isPressAndHold.current) {
+      isPressAndHold.current = false;
+      return;
+    }
+    setActiveChat(chat);
   };
 
   return (
@@ -257,9 +294,12 @@ const Sidebar = () => {
               <div
                 key={chat._id}
                 className="relative group"
+                onTouchStart={() => handleTouchStart(chat._id)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={(e) => handleTouchEnd(e, chat)}
               >
                 <div
-                  onClick={() => setActiveChat(chat)}
+                  onClick={() => handleChatClick(chat)}
                   className={`flex items-center gap-3 p-3 rounded-sm cursor-pointer transition-all border ${
                     isSelected
                       ? 'bg-bg-secondary border-accent-custom ring-1 ring-accent-custom text-text-primary shadow-md'
@@ -297,14 +337,14 @@ const Sidebar = () => {
                           </span>
                         )}
                         
-                        {/* 3-Dot Options Action Trigger */}
+                        {/* 3-Dot Options Action Trigger - Always visible on mobile, hover on desktop */}
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setActiveMenuChatId(activeMenuChatId === chat._id ? null : chat._id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-bg-tertiary text-text-secondary hover:text-text-primary rounded-sm transition-all cursor-pointer"
+                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 hover:bg-bg-tertiary text-text-secondary hover:text-text-primary rounded-sm transition-all cursor-pointer"
                         >
                           <MoreVertical className="w-3.5 h-3.5" />
                         </button>

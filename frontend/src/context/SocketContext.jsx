@@ -69,7 +69,9 @@ export const SocketProvider = ({ children }) => {
   // Load user's conversations
   const fetchChats = async () => {
     if (!token) return;
-    setChatsLoading(true);
+    if (chatsRef.current.length === 0) {
+      setChatsLoading(true);
+    }
     try {
       const response = await axios.get(`${API_URL}/chats`);
       setChats(response.data);
@@ -316,11 +318,6 @@ export const SocketProvider = ({ children }) => {
         const response = await axios.get(`${API_URL}/chats/${activeChat._id}/messages`);
         setMessages(response.data);
 
-        // Notify that we opened/read this chat
-        if (socket) {
-          socket.emit('read_chat', { chatId: activeChat._id });
-        }
-
         // Reset unread count locally for this chat
         setChats(prevChats => prevChats.map(c => {
           if (c._id === activeChat._id) {
@@ -335,7 +332,14 @@ export const SocketProvider = ({ children }) => {
       }
     };
     loadMessages();
-  }, [activeChat?._id, token, socket]);
+  }, [activeChat?._id, token]);
+
+  // Notify socket that we opened/read this chat
+  useEffect(() => {
+    if (activeChat && socket) {
+      socket.emit('read_chat', { chatId: activeChat._id });
+    }
+  }, [activeChat?._id, socket]);
 
   const sendMessage = (chatId, text, replyToId) => {
     if (!socket) return;
