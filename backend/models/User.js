@@ -40,6 +40,18 @@ const UserSchema = new mongoose.Schema({
   profilePic: {
     type: String,
     default: ''
+  },
+  isEmailVerified: {
+    type: Boolean,
+    default: false
+  },
+  isPhoneVerified: {
+    type: Boolean,
+    default: false
+  },
+  verificationOtp: {
+    code: { type: String },
+    expiresAt: { type: Date }
   }
 });
 

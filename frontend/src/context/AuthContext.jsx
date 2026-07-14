@@ -115,8 +115,35 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const verifyOtp = async (code) => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/verify-otp`, { code });
+      const userData = response.data;
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Verification failed'
+      };
+    }
+  };
+
+  const resendOtp = async () => {
+    try {
+      const response = await axios.post(`${API_URL}/auth/resend-otp`);
+      return { success: true, message: response.data.message };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to resend code'
+      };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfilePic, theme, toggleTheme, API_URL }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfilePic, verifyOtp, resendOtp, theme, toggleTheme, API_URL }}>
       {children}
     </AuthContext.Provider>
   );
